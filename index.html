@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gourmet Hot Food Vending Machine - Unlimited</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Tone.js for sound effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <!-- Configure Tailwind for custom colors and font -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'vending-dark': '#1e293b',
+                        // --- PURPLE THEME ---
+                        'vending-accent': '#a78bfa', // Violet 400 for highlight text/border
+                        'vending-primary': '#7c3aed', // Violet 600 for VEND button
+                        'vending-secondary': '#4c1d95', // Violet 800 for selected payment method
+                        // --------------------
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom styles for a better vending machine look */
+        body {
+            background-color: #0f172a; /* Slate-900 */
+            font-family: 'Inter', sans-serif;
+        }
+        .vending-panel {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+        }
+        .product-card {
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        /* Adjusted hover shadow to match the purple accent */
+        .product-card:not(.out-of-stock):hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 10px -3px rgba(167, 139, 250, 0.5); /* Violet 400 shadow */
+        }
+        .out-of-stock {
+            /* Stock is now only a visual warning, not a blocker */
+            opacity: 0.8; 
+            cursor: pointer;
+        }
+        /* Adjusted selection border to match the purple accent */
+        .selected {
+            border: 3px solid #a78bfa; 
+            transform: scale(1.02);
+            cursor: default;
+        }
+        /* Custom progress bar - Kept green for 'completed' status visual contrast */
+        #cooking-bar {
+            height: 100%;
+            width: 0%;
+            background-color: #10b981; /* Emerald Green */
+            transition: width 0.1s linear;
+        }
+        /* For the large food icons */
+        .food-icon {
+            font-size: 2.5rem; /* Slightly smaller for more items */
+        }
+        /* Hide number input arrows */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        input[type=number] {
+            -moz-appearance: textfield; /* Firefox */
+        }
+        /* Custom style for selected payment button */
+        .payment-selected {
+            background-color: #7c3aed; /* vending-primary */
+            border-color: #a78bfa; /* vending-accent */
+        }
+    </style>
+</head>
+<body class="p-4 md:p-10 min-h-screen flex items-center justify-center">
+
+    <div id="vending-machine" class="vending-panel w-full max-w-6xl bg-vending-dark rounded-xl p-6 md:p-10 border-4 border-gray-700">
+        <!-- HEADER -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-vending-accent mb-2 tracking-tight">The Gourmet Automat - No Limits!</h1>
+            <p class="text-gray-400 text-lg">Order everything you want. We'll find a way to make it.</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+            <!-- 1. PRODUCT DISPLAY AREA (2/3 width on large screens) -->
+            <section class="lg:col-span-2 space-y-8">
+                
+                <!-- Food Section -->
+                <div class="space-y-4">
+                    <h2 class="text-2xl font-semibold text-white border-b border-gray-700 pb-2">1. Hot Meals (Unlimited Choices & Quantity)</h2>
+                    <div id="food-list" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
+                        <!-- Food cards will be inserted here by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Drinks Section -->
+                <div class="space-y-4">
+                    <h2 class="text-2xl font-semibold text-white border-b border-gray-700 pb-2">2. Beverages (Unlimited Choices & Quantity)</h2>
+                    <div id="drink-list" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
+                        <!-- Drink cards will be inserted here by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Dispensing Slot -->
+                <div class="bg-gray-800 p-4 rounded-lg mt-8">
+                    <h3 class="text-xl font-semibold text-vending-accent mb-3">Dispensing Slot</h3>
+                    <div id="dispensing-slot" class="h-24 bg-gray-900 rounded-lg border-2 border-dashed border-gray-600 flex items-center justify-center p-4">
+                        <p id="dispensed-item" class="text-gray-500 italic text-center">Your order will appear here after cooking.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. CONTROL PANEL (1/3 width on large screens) -->
+            <aside class="space-y-6 lg:col-span-1 border-t lg:border-t-0 lg:border-l border-gray-700 lg:pl-6 pt-6 lg:pt-0">
+                
+                <!-- Status/Message Display -->
+                <div class="bg-gray-800 p-4 rounded-lg">
+                    <h3 class="text-lg font-bold text-vending-accent mb-2">Machine Status</h3>
+                    <div id="message-display" class="bg-gray-900 text-white p-3 rounded h-16 flex items-center text-sm">
+                        Welcome! Select your items and payment method.
+                    </div>
+                    <!-- Cooking Progress Bar -->
+                    <div id="cooking-progress-container" class="mt-4 hidden">
+                        <p class="text-sm text-gray-400 mb-1">Cooking Meal...</p>
+                        <div class="w-full bg-gray-700 rounded-full h-3">
+                            <div id="cooking-bar" class="rounded-full"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment Method Selection -->
+                <div class="bg-gray-800 p-4 rounded-lg">
+                    <h3 class="text-lg font-bold text-vending-accent mb-2">3. Select Payment Method</h3>
+                    <div class="flex space-x-3">
+                        <!-- Cash Button -->
+                        <button id="payment-cash" onclick="setPaymentMethod('cash')" class="w-1/2 p-3 rounded-lg font-bold transition duration-150 border-2 border-vending-accent payment-selected bg-vending-primary text-white hover:bg-violet-700">
+                            Cash (NT)
+                        </button>
+                        <!-- Card Button -->
+                        <button id="payment-card" onclick="setPaymentMethod('card')" class="w-1/2 p-3 rounded-lg font-bold transition duration-150 border-2 border-gray-700 bg-gray-700 text-white hover:bg-gray-600">
+                            Debit/Credit Card
+                        </button>
+                    </div>
+                    <p id="payment-info" class="text-sm text-gray-400 mt-2">Currently selected: Cash. Insert money below.</p>
+                </div>
+                
+                <!-- Balance & Vending Panel (Dynamically shown for Cash) -->
+                <div id="cash-payment-panel" class="space-y-4">
+                    <div class="bg-gray-800 p-4 rounded-lg">
+                        <h3 class="text-lg font-bold text-vending-accent mb-2">Current Balance</h3>
+                        <p id="current-balance" class="text-4xl font-extrabold text-white">NT$0.00</p>
+                        
+                        <!-- VEND button now uses vending-primary (purple) -->
+                        <button id="vend-button" onclick="vendItem()" class="mt-4 w-full bg-vending-primary hover:bg-violet-700 text-white font-bold py-3 rounded-lg shadow-lg disabled:opacity-50 transition duration-150" disabled>
+                            PAY & VEND
+                        </button>
+                        <button id="return-change-button" onclick="returnChange()" class="mt-2 w-full bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 rounded-lg disabled:opacity-50 transition duration-150" disabled>
+                            Return Change
+                        </button>
+                    </div>
+
+                    <!-- Money Insertion (Dynamically shown for Cash) -->
+                    <div id="cash-insertion-panel" class="bg-gray-800 p-4 rounded-lg">
+                        <h3 class="text-lg font-bold text-vending-accent mb-2">Insert Money</h3>
+                        <div class="grid grid-cols-3 gap-2">
+                            <!-- Smaller Bills/Coins -->
+                            <button onclick="insertCoin(1.00)" class="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded font-mono transition duration-150">NT$1.00</button>
+                            <button onclick="insertCoin(5.00)" class="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded font-mono transition duration-150">NT$5.00</button>
+                            <button onclick="insertCoin(10.00)" class="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded font-mono transition duration-150">NT$10.00</button>
+                            <!-- Larger Bills -->
+                            <button onclick="insertCoin(20.00)" class="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded font-mono transition duration-150">NT$20.00</button>
+                            <button onclick="insertCoin(100.00)" class="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded font-mono transition duration-150">NT$100.00</button>
+                            <button onclick="insertCoin(1000.00)" class="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded font-mono transition duration-150 font-bold">NT$1000.00</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card Payment Placeholder (Dynamically shown for Card) -->
+                <div id="card-payment-panel" class="bg-gray-800 p-6 rounded-lg hidden text-center">
+                    <p class="text-white text-xl font-bold mb-4">Tap or Insert Card Below</p>
+                    <div class="h-20 w-full bg-gray-700 rounded-lg flex items-center justify-center">
+                        <p class="text-gray-400">Card Reader Slot/NFC Area</p>
+                    </div>
+                    <button id="vend-card-button" onclick="vendItem()" class="mt-4 w-full bg-vending-primary hover:bg-violet-700 text-white font-bold py-3 rounded-lg shadow-lg disabled:opacity-50 transition duration-150" disabled>
+                        PAY & VEND
+                    </button>
+                </div>
+
+            </aside>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Sound Effects Setup (Tone.js) ---
+        const synth = new Tone.PolySynth(Tone.Synth, {
+            oscillator: { type: "square" },
+            envelope: { attack: 0.005, decay: 0.1, sustain: 0.0, release: 0.05 },
+        }).toDestination();
+
+        const lowSynth = new Tone.Synth({
+            oscillator: { type: "triangle" },
+            envelope: { attack: 0.05, decay: 0.2, sustain: 0.0, release: 0.3 },
+        }).toDestination();
+
+        const playSelectSound = () => {
+            if (Tone.context.state !== 'running') Tone.start();
+            synth.triggerAttackRelease("C5", "16n");
+        };
+
+        const playErrorSound = () => {
+            if (Tone.context.state !== 'running') Tone.start();
+            lowSynth.triggerAttackRelease("C3", "8n");
+        };
+
+        const playVendStartSound = () => {
+            if (Tone.context.state !== 'running') Tone.start();
+            const now = Tone.now();
+            // A short mechanical/percussive sound
+            synth.triggerAttackRelease("G4", "32n", now);
+            synth.triggerAttackRelease("G3", "32n", now + 0.05);
+            synth.triggerAttackRelease("G4", "32n", now + 0.1);
+        };
+
+        const playSuccessSound = () => {
+            if (Tone.context.state !== 'running') Tone.start();
+            const now = Tone.now();
+            synth.triggerAttackRelease("C5", "8n", now);
+            synth.triggerAttackRelease("E5", "8n", now + 0.1);
+            synth.triggerAttackRelease("G5", "4n", now + 0.2);
+        };
+
+        // --- Vending Machine Logic ---
+
+        // Inventory objects. Note: stock is present but no longer restricts purchases.
+        const foodInventory = [
+            { id: 'pizza', name: 'Fresh Pizza', price: 30, stock: 5, time: 10, icon: '🍕', category: 'food' },
+            { id: 'burger', name: 'Hot Burger', price:25, stock: 8, time: 8, icon: '🍔', category: 'food' },
+            { id: 'fries', name: 'Crispy Fries', price:30, stock: 12, time: 5, icon: '🍟', category: 'food' },
+            { id: 'ramen', name: 'Steaming Ramen', price:40, stock: 6, time: 12, icon: '🍜', category: 'food' },
+            { id: 'taco', name: 'Hard Shell Taco', price:45, stock: 7, time: 7, icon: '🌮', category: 'food' },
+            { id: 'steak', name: 'Mini Steak Plate', price: 150, stock: 3, time: 15, icon: '🥩', category: 'food' },
+            { id: 'sushi', name: 'Seared Sushi Roll', price:180, stock: 9, time: 6, icon: '🍣', category: 'food' },
+            { id: 'waffle', name: 'Dessert Waffle', price:80, stock: 10, time: 4, icon: '🧇', category: 'food' },
+            { id: 'soup', name: 'Tomato Soup', price: 40, stock: 15, time: 5, icon: '🥣', category: 'food' },
+            { id: 'pasta', name: 'Hot Pasta Bowl', price:100, stock: 5, time: 9, icon: '🍝', category: 'food' },
+        ];
+
+        const drinkInventory = [
+            { id: 'cola', name: 'Cola', price: 25, stock: 20, time: 0, icon: '🥤', category: 'drink' },
+            { id: 'water', name: 'Bottled Water', price: 15, stock: 30, time: 0, icon: '💧', category: 'drink' },
+            { id: 'coffee', name: 'Hot Coffee', price:30, stock: 15, time: 0, icon: '☕', category: 'drink' },
+            { id: 'juice', name: 'Orange Juice', price:15, stock: 18, time: 0, icon: '🍊', category: 'drink' },
+            { id: 'tea', name: 'Iced Tea', price: 15, stock: 25, time: 0, icon: '🍹', category: 'drink' },
+        ];
+
+        // --- Quotes for Fun ---
+        const quotes = [
+            "The best time to plant a tree was 20 years ago. The second best time is now. Enjoy your meal!",
+            "You miss 100% of the shots you don't take. But you nailed this snack. Great job!",
+            "If you can dream it, you can do it. But first, eat this. You earned it.",
+            "I'm so happy I could just burst! Almost as happy as you'll be eating this. Enjoy!",
+            "Life is what happens when you're busy making other plans. And ordering hot food from a machine. Smart.",
+            "I told my computer I needed a break... now I'm getting spam from Kit Kat. Enjoy your well-deserved break!",
+            "I used to jog, but all the ice cubes kept falling out of my glass. Stay hydrated and enjoy!",
+            "A balanced diet is a meal in each hand. Don't worry, we'll keep your secrets. Enjoy!",
+            "Eat food. Not too much. Mostly plants. (And this hot item).",
+            "Be yourself; everyone else is already taken. And if 'yourself' is hungry, we got you.",
+        ];
+
+        const getRandomQuote = () => {
+            const index = Math.floor(Math.random() * quotes.length);
+            return quotes[index];
+        };
+
+        let currentBalance = 0.00;
+        let selectedItems = []; // Array to hold ALL selections { item: object, quantity: number }
+        let isVending = false;
+        let paymentMethod = 'cash'; // 'cash' or 'card'
+
+        // UI Elements
+        const balanceEl = document.getElementById('current-balance');
+        const messageEl = document.getElementById('message-display');
+        const foodListEl = document.getElementById('food-list');
+        const drinkListEl = document.getElementById('drink-list');
+        const vendButtonCash = document.getElementById('vend-button');
+        const vendButtonCard = document.getElementById('vend-card-button');
+        const returnChangeButton = document.getElementById('return-change-button');
+        const dispensedItemEl = document.getElementById('dispensed-item');
+        const cookingContainer = document.getElementById('cooking-progress-container');
+        const cookingBar = document.getElementById('cooking-bar');
+        const moneyButtons = document.querySelectorAll('#cash-insertion-panel button');
+
+        const paymentCashButton = document.getElementById('payment-cash');
+        const paymentCardButton = document.getElementById('payment-card');
+        const cashPaymentPanel = document.getElementById('cash-payment-panel');
+        const cardPaymentPanel = document.getElementById('card-payment-panel');
+        const paymentInfoEl = document.getElementById('payment-info');
+
+        /**
+         * Finds item object by ID across both inventories.
+         * @param {string} itemId 
+         * @returns {object | null}
+         */
+        const findItem = (itemId) => {
+            return [...foodInventory, ...drinkInventory].find(i => i.id === itemId);
+        };
+
+        /**
+         * Calculates the total cost of the current order.
+         * @returns {number}
+         */
+        const calculateTotalCost = () => {
+            let cost = 0.00;
+            selectedItems.forEach(s => {
+                cost += s.item.price * s.quantity;
+            });
+            return parseFloat(cost.toFixed(2));
+        };
+
+        /**
+         * Formats a number as currency (e.g., $12.00).
+         * @param {number} amount
+         * @returns {string}
+         */
+        const formatCurrency = (amount) => {
+           return `NT$${amount.toFixed(2)}`;
+        };
+
+        /**
+         * Sets the payment method and updates the UI accordingly.
+         * @param {string} method - 'cash' or 'card'.
+         */
+        window.setPaymentMethod = (method) => {
+            if (isVending) return;
+            paymentMethod = method;
+
+            if (method === 'cash') {
+                cashPaymentPanel.classList.remove('hidden');
+                cardPaymentPanel.classList.add('hidden');
+                paymentCashButton.classList.add('payment-selected', 'bg-vending-primary', 'border-vending-accent');
+                paymentCardButton.classList.remove('payment-selected', 'bg-vending-primary', 'border-vending-accent');
+                paymentCardButton.classList.add('bg-gray-700', 'border-gray-700');
+                paymentInfoEl.textContent = "Currently selected: Cash. Insert money below.";
+            } else { // 'card'
+                cashPaymentPanel.classList.add('hidden');
+                cardPaymentPanel.classList.remove('hidden');
+                paymentCardButton.classList.add('payment-selected', 'bg-vending-primary', 'border-vending-accent');
+                paymentCashButton.classList.remove('payment-selected', 'bg-vending-primary', 'border-vending-accent');
+                paymentCashButton.classList.add('bg-gray-700', 'border-gray-700');
+                paymentInfoEl.textContent = "Currently selected: Card. Press VEND when ready.";
+            }
+            updateUI();
+        };
+
+        /**
+         * Handles quantity updates for the selected item.
+         * @param {string} itemId - The ID of the item being updated.
+         * @param {number | string} newQty - The new quantity value.
+         */
+        window.updateQuantity = (itemId, newQty) => {
+            if (isVending) return;
+            
+            const selection = selectedItems.find(s => s.item.id === itemId);
+
+            if (!selection) return;
+
+            // --- NO MAXIMUM QUANTITY CHECK ---
+            let quantity = parseInt(newQty, 10);
+
+            if (isNaN(quantity) || quantity < 0 || !Number.isInteger(quantity)) {
+                quantity = 1; // Default to 1 if invalid
+            } else if (quantity > 9999) {
+                 // Safety limit for the input field display, though conceptually unlimited
+                 quantity = 9999; 
+            }
+            // --- END NO MAXIMUM QUANTITY CHECK ---
+            
+            if (quantity === 0) {
+                 // Deselect item if quantity hits 0
+                const index = selectedItems.findIndex(s => s.item.id === itemId);
+                if (index !== -1) selectedItems.splice(index, 1);
+            } else {
+                 selection.quantity = quantity;
+            }
+
+            playSelectSound();
+            updateUI();
+        }
+        
+        /**
+         * Helper function to render product cards for a given inventory array.
+         * @param {Array<object>} inventoryArr 
+         * @param {HTMLElement} containerEl 
+         */
+        const renderProductList = (inventoryArr, containerEl) => {
+            containerEl.innerHTML = '';
+            inventoryArr.forEach(item => {
+                const currentSelection = selectedItems.find(s => s.item.id === item.id);
+                const isSelected = !!currentSelection;
+                const isOutOfStock = item.stock <= 0;
+                
+                const card = document.createElement('div');
+                card.id = `item-${item.id}`;
+                
+                // Base classes
+                let classes = `product-card p-2 rounded-lg flex flex-col items-center text-center ${isSelected ? 'selected' : 'bg-gray-800 hover:bg-gray-700'} ${isOutOfStock ? 'out-of-stock border-2 border-gray-700' : 'border-2 border-gray-700'}`;
+                
+                // No selection limits: click always selects/deselects unless vending
+                if (!isVending) {
+                    card.onclick = () => selectProduct(item.id);
+                } else {
+                    card.onclick = null;
+                }
+
+                card.className = classes;
+
+                let availabilityText = '';
+                if (isOutOfStock) {
+                    // Show stock as warning, not a blocker
+                    availabilityText = '<span class="text-vending-primary font-bold">SOLD OUT (Order Anyway!)</span>';
+                } else {
+                    availabilityText = `<span class="text-green-500 text-xs">${item.stock} Avail.</span>`;
+                }
+
+                let cardContent = `
+                    <span class="food-icon mb-1">${item.icon}</span>
+                    <h4 class="text-base font-bold text-white mb-0 leading-tight">${item.name}</h4>
+                    <p class="text-xl font-extrabold text-vending-accent">${formatCurrency(item.price)}</p>
+                    <p class="text-xs text-gray-400">${item.time > 0 ? `Cook: ${item.time}s` : 'Instant'}</p>
+                    <p class="mt-1">${availabilityText}</p>
+                `;
+
+                if (isSelected) {
+                    const currentQty = currentSelection.quantity;
+                    // Note: NO MAX ATTRIBUTE on the input
+                    const totalCost = parseFloat((item.price * currentQty).toFixed(2));
+
+                    cardContent += `
+                        <div class="mt-2 w-full bg-gray-900 p-2 rounded-md border border-vending-accent">
+                            <h5 class="text-vending-accent font-semibold text-sm mb-1">Total: ${formatCurrency(totalCost)}</h5>
+                            <div class="flex justify-center items-center space-x-1">
+                                <button onclick="updateQuantity('${item.id}', ${currentQty - 1})" 
+                                        class="p-0 w-6 h-6 bg-gray-700 hover:bg-gray-600 rounded-full text-lg font-bold leading-none disabled:opacity-50 transition duration-150"
+                                        ${currentQty <= 1 ? '' : ''}>-</button>
+                                <input id="qty-input-${item.id}" type="number" min="0" value="${currentQty}" 
+                                       onchange="updateQuantity('${item.id}', this.value)"
+                                       class="w-8 text-center bg-gray-600 text-white rounded p-0 text-xs focus:ring-vending-accent focus:border-vending-accent" />
+                                <button onclick="updateQuantity('${item.id}', ${currentQty + 1})" 
+                                        class="p-0 w-6 h-6 bg-gray-700 hover:bg-gray-600 rounded-full text-lg font-bold leading-none disabled:opacity-50 transition duration-150"
+                                        >+</button>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                card.innerHTML = cardContent;
+                containerEl.appendChild(card);
+            });
+        }
+
+        /**
+         * Updates all UI elements: balance, product lists, and button states.
+         */
+        const updateUI = () => {
+            const totalCost = calculateTotalCost();
+            balanceEl.textContent = formatCurrency(currentBalance);
+            
+            // 1. Render Product Lists (No selection object needed, it's determined internally)
+            renderProductList(foodInventory, foodListEl);
+            renderProductList(drinkInventory, drinkListEl);
+
+            // 2. Update Button States
+            const hasSelection = selectedItems.length > 0;
+            const hasFunds = currentBalance >= totalCost;
+            
+            vendButtonCash.disabled = isVending || !hasSelection || paymentMethod !== 'cash' || !hasFunds;
+            vendButtonCard.disabled = isVending || !hasSelection || paymentMethod !== 'card';
+            returnChangeButton.disabled = isVending || currentBalance <= 0 || paymentMethod !== 'cash';
+
+            // 3. Disable money insertion during vending or if card is selected
+            moneyButtons.forEach(button => {
+                button.disabled = isVending || paymentMethod !== 'cash';
+            });
+            
+            // 4. Update Message
+            if (!hasSelection) {
+                showMessage("Welcome, Gourmet! Select your main course(s) and a drink.");
+            } else {
+                let totalCookTime = 0;
+                selectedItems.forEach(s => { 
+                    if (s.item.category === 'food') {
+                        totalCookTime += s.item.time * s.quantity; 
+                    }
+                });
+                
+                let statusMsg = `Order Total: ${formatCurrency(totalCost)}. `;
+
+                if (paymentMethod === 'cash') {
+                    if (!hasFunds) {
+                        const required = totalCost - currentBalance;
+                        statusMsg += `Need ${formatCurrency(required)} more to satisfy your hunger!`;
+                    } else {
+                        statusMsg += `Ready to VEND! Your Change will be: ${formatCurrency(currentBalance - totalCost)}.`;
+                    }
+                } else { // 'card'
+                    statusMsg += `Ready to charge ${formatCurrency(totalCost)} to card. Get set for deliciousness!`;
+                }
+
+                if (totalCookTime > 0) {
+                     statusMsg += ` (Cook Time: ${totalCookTime}s)`;
+                }
+
+                showMessage(statusMsg, !hasFunds && paymentMethod === 'cash');
+            }
+        };
+
+        /**
+         * Displays a temporary message in the status panel.
+         * @param {string} msg - The message to display.
+         * @param {boolean} isError - If true, displays as an error.
+         */
+        const showMessage = (msg, isError = false) => {
+            messageEl.textContent = msg;
+            messageEl.className = `bg-gray-900 p-3 rounded h-16 flex items-center text-sm transition-colors duration-300 ${isError ? 'text-vending-primary' : 'text-white'}`;
+        };
+
+        /**
+         * Handles coin/bill insertion.
+         * @param {number} amount - The amount inserted.
+         */
+        window.insertCoin = (amount) => {
+            if (isVending || paymentMethod !== 'cash') return;
+            playSelectSound();
+            currentBalance += amount;
+            currentBalance = parseFloat(currentBalance.toFixed(2)); // Prevent floating point errors
+            showMessage(`Cha-ching! Inserted ${formatCurrency(amount)}. Your current credit: ${formatCurrency(currentBalance)}.`);
+            updateUI();
+        };
+
+        /**
+         * Handles product selection/deselection.
+         * @param {string} itemId - The ID of the item selected.
+         */
+        window.selectProduct = (itemId) => {
+            const item = findItem(itemId);
+            
+            playSelectSound();
+
+            const existingIndex = selectedItems.findIndex(s => s.item.id === itemId);
+
+            if (existingIndex !== -1) {
+                // Deselecting existing item
+                selectedItems.splice(existingIndex, 1);
+            } else {
+                // Selecting new item (no limits)
+                selectedItems.push({ item: item, quantity: 1 });
+            }
+            updateUI();
+        };
+
+        /**
+         * Handles the vending process.
+         */
+        window.vendItem = () => {
+            if (isVending || selectedItems.length === 0) return;
+
+            const totalCost = calculateTotalCost();
+
+            // 1. Payment Check (Cash Only)
+            if (paymentMethod === 'cash') {
+                if (currentBalance < totalCost) {
+                    showMessage(`Bzzzt! Insufficient funds! Please insert ${formatCurrency(totalCost - currentBalance)} more shiny coins.`, true);
+                    playErrorSound();
+                    return;
+                }
+                currentBalance -= totalCost;
+                currentBalance = parseFloat(currentBalance.toFixed(2));
+            } 
+            // 2. Payment Check (Card Only - always successful in simulation)
+            else if (paymentMethod === 'card') {
+                showMessage(`Card Approved! Charging ${formatCurrency(totalCost)}. Processing order.`);
+            }
+
+            // 3. Start Vending Sequence
+            isVending = true;
+            updateUI();
+            playVendStartSound();
+
+            let dispensedItems = [];
+            let totalCookTime = 0;
+            
+            // Handle Deduction (STOCK IS NOT DEDUCTED - Unlimited Quantity!)
+            selectedItems.forEach(selection => {
+                const item = selection.item;
+                const quantity = selection.quantity;
+                dispensedItems.push(`${item.icon} ${item.name} (x${quantity})`);
+                if (item.category === 'food') {
+                    totalCookTime += item.time * quantity; 
+                }
+            });
+
+            // UI feedback for start
+            dispensedItemEl.innerHTML = `<span class="text-gray-400">Cooking and preparing ${dispensedItems.length} unique item(s)... Stay patient, the chef is busy making ${totalCookTime} seconds worth of food!</span>`;
+            
+            // Check if cooking is needed
+            if (totalCookTime > 0) {
+                showMessage(`Cooking your massive order... Total cook time: ${totalCookTime}s. Smell that deliciousness!`);
+                cookingContainer.classList.remove('hidden');
+            } else {
+                showMessage(`Dispensing instant order... Hope you have fast reflexes!`);
+            }
+
+            // Start Cooking/Wait Simulation
+            let progress = 0;
+            const intervalDuration = 100; 
+
+            const cookingInterval = setInterval(() => {
+                // Only update progress bar if cook time > 0
+                if (totalCookTime > 0) {
+                    progress += (intervalDuration / (totalCookTime * 1000)) * 100;
+                    cookingBar.style.width = `${Math.min(progress, 100)}%`;
+                } else {
+                    progress = 100; // Instant completion
+                }
+
+                if (progress >= 100) {
+                    clearInterval(cookingInterval);
+                    
+                    // Vending Complete
+                    isVending = false;
+                    playSuccessSound();
+                    
+                    // Display Vended Items
+                    dispensedItemEl.innerHTML = `
+                        <div class="text-white text-base font-semibold">🎉 Order Ready! Grab your gourmet prize! 🎉</div>
+                        ${dispensedItems.map(item => 
+                            `<div class="text-xl animate-pulse">${item}</div>`
+                        ).join('')}
+                    `;
+                    
+                    // --- Quote Logic Insertion ---
+                    const randomQuote = getRandomQuote(); 
+                    let finalMsg = `${randomQuote} --- Thank you for your massive order!`;
+                    // -----------------------------
+
+                    if (paymentMethod === 'cash') {
+                         finalMsg += ` Change dispensed: ${formatCurrency(currentBalance)}.`;
+                    }
+                    showMessage(finalMsg);
+                    
+                    // Reset selections and UI
+                    selectedItems = [];
+                    cookingContainer.classList.add('hidden');
+                    cookingBar.style.width = '0%'; 
+                    
+                    setTimeout(() => {
+                         if (!isVending && (paymentMethod === 'card' || currentBalance <= 0)) { 
+                             dispensedItemEl.innerHTML = '<p id="dispensed-item" class="text-gray-500 italic text-center">Your order will appear here after cooking.</p>';
+                         }
+                         updateUI();
+                    }, 5000);
+                }
+            }, intervalDuration);
+        };
+
+        /**
+         * Returns any current balance as change and resets the machine.
+         */
+        window.returnChange = () => {
+            if (isVending || paymentMethod !== 'cash') return;
+            const changeAmount = currentBalance;
+            if (changeAmount > 0) {
+                showMessage(`Poof! Change returned: ${formatCurrency(changeAmount)}. See you next time, big spender!`);
+                playSuccessSound();
+                currentBalance = 0.00;
+            } else {
+                showMessage("Your pockets are empty, and so is our change slot for you right now.", true);
+                playErrorSound();
+            }
+            selectedItems = [];
+            updateUI();
+            dispensedItemEl.innerHTML = '<p id="dispensed-item" class="text-gray-500 italic text-center">Your order will appear here after cooking.</p>';
+        };
+
+        // Initialize the machine on load
+        window.onload = () => {
+            setPaymentMethod('cash'); // Initialize default payment method
+        };
+
+    </script>
+</body>
+</html>

@@ -8,6 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Load Tone.js for sound effects -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    
     <!-- Configure Tailwind for custom colors and font -->
     <script>
         tailwind.config = {
@@ -33,6 +34,7 @@
         body {
             background-color: #0f172a; /* Slate-900 */
             font-family: 'Inter', sans-serif;
+            padding-bottom: 4rem; /* reserve space for fixed footer */
         }
         .vending-panel {
             box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
@@ -76,12 +78,14 @@
         }
         input[type=number] {
             -moz-appearance: textfield; /* Firefox */
+            appearance: textfield; /* Standard property for compatibility */
         }
         /* Custom style for selected payment button */
         .payment-selected {
             background-color: #7c3aed; /* vending-primary */
             border-color: #a78bfa; /* vending-accent */
         }
+    /* ...existing code... */
     </style>
 </head>
 <body class="p-4 md:p-10 min-h-screen flex items-center justify-center">
@@ -170,6 +174,7 @@
                         <button id="return-change-button" onclick="returnChange()" class="mt-2 w-full bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 rounded-lg disabled:opacity-50 transition duration-150" disabled>
                             Return Change
                         </button>
+                        <!-- ...existing code... -->
                     </div>
 
                     <!-- Money Insertion (Dynamically shown for Cash) -->
@@ -197,11 +202,17 @@
                     <button id="vend-card-button" onclick="vendItem()" class="mt-4 w-full bg-vending-primary hover:bg-violet-700 text-white font-bold py-3 rounded-lg shadow-lg disabled:opacity-50 transition duration-150" disabled>
                         PAY & VEND
                     </button>
+                    <!-- ...existing code... -->
                 </div>
 
             </aside>
         </div>
 
+    
+        <!-- ...existing code... -->
+
+        <!-- FOOTER inside vending machine -->
+        <div class="mt-6 text-center text-gray-400 text-sm">Copyright @2025 J.M Ordeniza All rights reserved</div>
     </div>
 
     <script>
@@ -220,6 +231,7 @@
             if (Tone.context.state !== 'running') Tone.start();
             synth.triggerAttackRelease("C5", "16n");
         };
+
 
         const playErrorSound = () => {
             if (Tone.context.state !== 'running') Tone.start();
@@ -309,6 +321,8 @@
         const cashPaymentPanel = document.getElementById('cash-payment-panel');
         const cardPaymentPanel = document.getElementById('card-payment-panel');
         const paymentInfoEl = document.getElementById('payment-info');
+
+        // ...existing code...
 
         /**
          * Finds item object by ID across both inventories.
@@ -453,13 +467,13 @@
                         <div class="mt-2 w-full bg-gray-900 p-2 rounded-md border border-vending-accent">
                             <h5 class="text-vending-accent font-semibold text-sm mb-1">Total: ${formatCurrency(totalCost)}</h5>
                             <div class="flex justify-center items-center space-x-1">
-                                <button onclick="updateQuantity('${item.id}', ${currentQty - 1})" 
+                                <button onclick="updateQuantity('${item.id}', ${currentQty - 1})"
                                         class="p-0 w-6 h-6 bg-gray-700 hover:bg-gray-600 rounded-full text-lg font-bold leading-none disabled:opacity-50 transition duration-150"
-                                        ${currentQty <= 1 ? '' : ''}>-</button>
-                                <input id="qty-input-${item.id}" type="number" min="0" value="${currentQty}" 
+                                        >-</button>
+                                <input id="qty-input-${item.id}" type="number" min="0" value="${currentQty}"
                                        onchange="updateQuantity('${item.id}', this.value)"
                                        class="w-8 text-center bg-gray-600 text-white rounded p-0 text-xs focus:ring-vending-accent focus:border-vending-accent" />
-                                <button onclick="updateQuantity('${item.id}', ${currentQty + 1})" 
+                                <button onclick="updateQuantity('${item.id}', ${currentQty + 1})"
                                         class="p-0 w-6 h-6 bg-gray-700 hover:bg-gray-600 rounded-full text-lg font-bold leading-none disabled:opacity-50 transition duration-150"
                                         >+</button>
                             </div>
@@ -470,7 +484,8 @@
                 card.innerHTML = cardContent;
                 containerEl.appendChild(card);
             });
-        }
+        };
+        
 
         /**
          * Updates all UI elements: balance, product lists, and button states.
@@ -662,6 +677,8 @@
                     }
                     showMessage(finalMsg);
                     
+                    // ...existing code...
+
                     // Reset selections and UI
                     selectedItems = [];
                     cookingContainer.classList.add('hidden');
@@ -692,6 +709,7 @@
                 playErrorSound();
             }
             selectedItems = [];
+            // ...existing code...
             updateUI();
             dispensedItemEl.innerHTML = '<p id="dispensed-item" class="text-gray-500 italic text-center">Your order will appear here after cooking.</p>';
         };
@@ -699,6 +717,7 @@
         // Initialize the machine on load
         window.onload = () => {
             setPaymentMethod('cash'); // Initialize default payment method
+            updateReceiptButtons();
         };
 
     </script>
